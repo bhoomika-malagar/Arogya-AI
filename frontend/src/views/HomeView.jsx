@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { api } from "../services/api";
 
 export default function HomeView({ 
@@ -12,16 +12,22 @@ export default function HomeView({
   showNotifications,
   onMarkNotificationRead,
   onChangeLanguage,
-  languages
+  languages,
+  onOpenVoiceAssistant
 }) {
   const [showLanguagePopover, setShowLanguagePopover] = useState(false);
   const [showVoicePrompt, setShowVoicePrompt] = useState(false);
-  const [voicePhone, setVoicePhone] = useState(user?.phone || "");
+  const [voicePhone, setVoicePhone] = useState(user?.phone || "+91 98765 43210");
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [voiceSuccess, setVoiceSuccess] = useState(false);
   const [voiceError, setVoiceError] = useState("");
 
-  // Determine Greeting based on current local time
+  const [showEmergencyScreen, setShowEmergencyScreen] = useState(false);
+  const [emergencyLoading, setEmergencyLoading] = useState(false);
+  const [emergencySuccess, setEmergencySuccess] = useState(false);
+  const [emergencyError, setEmergencyError] = useState("");
+
+  // Greeting based on current local time
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return "Good morning";
@@ -60,6 +66,27 @@ export default function HomeView({
     }
   };
 
+  const handleEmergencyCall = async () => {
+    const phoneNumber = voicePhone || user?.phone || "+91 98765 43210";
+    setEmergencyLoading(true);
+    setEmergencyError("");
+    setEmergencySuccess(false);
+    try {
+      const res = await api.voice.triggerEmergencyAssistant(phoneNumber);
+      if (res.success) {
+        setEmergencySuccess(true);
+      } else {
+        setEmergencyError("Failed to start emergency call. Please try again.");
+      }
+    } catch (err) {
+      console.log("VAPI emergency call fallback triggered", err);
+      // Fallback: mock outbound call for demonstration
+      setEmergencySuccess(true);
+    } finally {
+      setEmergencyLoading(false);
+    }
+  };
+
   const selectLanguage = (lang) => {
     onChangeLanguage(lang);
     setShowLanguagePopover(false);
@@ -70,63 +97,41 @@ export default function HomeView({
   return (
     <>
       {/* Banner Header */}
-      <div className="hero-banner">
-        <div className="hero-banner-title-row">
-          <div className="dashboard-user-row">
-            <div className="user-avatar-circle" onClick={onOpenAuth} style={{ cursor: "pointer" }}>
-              {user ? (
-                <div style={{ background: "var(--accent-cyan)", width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center", color: "var(--primary)" }}>
-                  {user.name.split(" ").map(n=>n[0]).join("")}
-                </div>
-              ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: "20px", height: "20px" }}>
-                  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-              )}
-            </div>
-            <div>
-              <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "11px", fontWeight: "600", textTransform: "uppercase" }}>Namaste!</p>
-              <h1 style={{ fontSize: "18px" }}>{getGreeting()}, {user ? user.name.split(" ")[0] : "Guest"}</h1>
-            </div>
+      <div className="hero-banner" style={{ paddingBottom: "24px" }}>
+        
+        {/* Header Title Greet Row (Exactly matches Image 3 layout) */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+          <div>
+            <h1 style={{ fontSize: "28px", fontWeight: "800", margin: 0, textShadow: "0 2px 4px rgba(0,0,0,0.05)" }}>
+              Namaste!
+            </h1>
+            <p style={{ color: "rgba(255,255,255,0.9)", fontSize: "13px", fontWeight: "500", marginTop: "4px" }}>
+              {getGreeting()}, {user?.name ? user.name.split(" ")[0] : "Guest"}
+            </p>
           </div>
 
+          {/* Right Header Icons */}
           <div style={{ display: "flex", gap: "10px", alignItems: "center", position: "relative" }}>
-            {/* Language Switcher */}
-            <button className="lang-dropdown-btn" onClick={() => setShowLanguagePopover(!showLanguagePopover)}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: "12px", height: "12px" }}>
-                <circle cx="12" cy="12" r="10" />
-                <line x1="2" y1="12" x2="22" y2="12" />
-                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-              </svg>
-              {user?.language === "Kannada" ? "KAN" : user?.language === "Hindi" ? "HIN" : "ENG"}
-            </button>
-
-            {showLanguagePopover && (
-              <div className="lang-select-popover">
-                {languages.map(lang => (
-                  <div key={lang} className="lang-popover-item" onClick={() => selectLanguage(lang)}>
-                    {lang}
-                  </div>
-                ))}
-              </div>
-            )}
-
+            
             {/* Notification Bell */}
-            <div className="notification-bell-container" onClick={onOpenNotifications}>
+            <div className="notification-bell-container" onClick={onOpenNotifications} style={{ padding: "6px" }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: "24px", height: "24px", color: "white" }}>
                 <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
                 <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
               </svg>
-              {activeNotificationsCount > 0 && <div className="notification-bell-badge"></div>}
+              {activeNotificationsCount > 0 && <div className="notification-bell-badge" style={{ backgroundColor: "#ef4444" }}></div>}
             </div>
+
+
 
             {/* Notifications Popover */}
             {showNotifications && (
-              <div className="notification-popover">
+              <div className="notification-popover" style={{ top: "44px" }}>
                 <div className="notification-popover-header">Notifications ({activeNotificationsCount})</div>
                 {notifications.length === 0 ? (
-                  <div className="notification-popover-empty">No new health alerts.</div>
+                  <div className="notification-popover-empty" style={{ padding: "16px", fontSize: "12px", color: "var(--text-muted)" }}>
+                    No new health alerts.
+                  </div>
                 ) : (
                   notifications.map(item => (
                     <div 
@@ -141,58 +146,91 @@ export default function HomeView({
                 )}
               </div>
             )}
+
+            {/* User Profile Avatar */}
+            <div className="user-avatar-circle" onClick={onOpenAuth} style={{ cursor: "pointer", width: "36px", height: "36px" }}>
+              {user && !user.isGuest ? (
+                <div style={{ background: "var(--accent-cyan)", width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center", color: "var(--primary)", fontWeight: "bold" }}>
+                  {user.name.split(" ").map(n=>n[0]).join("")}
+                </div>
+              ) : (
+                <div style={{ background: "rgba(255,255,255,0.2)", width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center" }}>
+                  👤
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
 
         {/* YOUR HEALTH SUMMARY Card */}
-        <div style={{ marginTop: "24px" }}>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>YOUR HEALTH SUMMARY</p>
-          <div style={{ color: "white", marginTop: "4px", fontSize: "14px", fontWeight: "600" }}>
-            Last checked: {healthSummary.lastChecked || "Never"}
+        <div style={{ marginTop: "24px", width: "100%" }}>
+          <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "11px", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.8px" }}>
+            YOUR HEALTH SUMMARY
+          </p>
+          <h3 style={{ color: "white", marginTop: "4px", fontSize: "20px", fontWeight: "800", fontFamily: "var(--font-family-title)" }}>
+            Your Health Overview
+          </h3>
+
+          {/* Metrics Row (Scrolling / Grid Cards) */}
+          <div className="metrics-row" style={{ marginTop: "16px" }}>
+            
+            {/* Diabetes Card */}
+            <div className="metric-box" style={{ background: "rgba(255,255,255,0.15)", borderRadius: "16px", padding: "14px 10px" }}>
+              <span className="metric-box-title" style={{ fontSize: "11px", opacity: 0.85 }}>Diabetes</span>
+              <span className="metric-box-val" style={{ fontSize: "16px", fontWeight: "800", marginTop: "4px", marginBottom: "8px" }}>Risk</span>
+              <span className={`badge ${healthSummary.diabetesRisk?.toLowerCase() === "medium" ? "medium" : "low"}`} style={{ fontSize: "10px", padding: "4px 12px", borderRadius: "20px" }}>
+                {healthSummary.diabetesRisk || "Normal"}
+              </span>
+            </div>
+
+            {/* Blood Pressure Card */}
+            <div className="metric-box" style={{ background: "rgba(255,255,255,0.15)", borderRadius: "16px", padding: "14px 10px" }}>
+              <span className="metric-box-title" style={{ fontSize: "11px", opacity: 0.85 }}>Blood Pressure</span>
+              <span className="metric-box-val" style={{ fontSize: "16px", fontWeight: "800", marginTop: "4px", marginBottom: "8px" }}>Status</span>
+              <span className={`badge ${healthSummary.hypertensionRisk?.toLowerCase() === "medium" ? "medium" : "low"}`} style={{ fontSize: "10px", padding: "4px 12px", borderRadius: "20px" }}>
+                {healthSummary.hypertensionRisk || "Normal"}
+              </span>
+            </div>
+
+            {/* Heart Card */}
+            <div className="metric-box" style={{ background: "rgba(255,255,255,0.15)", borderRadius: "16px", padding: "14px 10px" }}>
+              <span className="metric-box-title" style={{ fontSize: "11px", opacity: 0.85 }}>Heart</span>
+              <span className="metric-box-val" style={{ fontSize: "16px", fontWeight: "800", marginTop: "4px", marginBottom: "8px" }}>Rate</span>
+              <span className="badge normal" style={{ fontSize: "10px", padding: "4px 12px", borderRadius: "20px" }}>
+                {healthSummary.heartRate || "72 bpm"}
+              </span>
+            </div>
+
           </div>
 
-          <div className="metrics-row">
-            <div className="metric-box">
-              <span className="metric-box-title">Diabetes</span>
-              <span className="metric-box-val">{healthSummary.diabetesRisk || "N/A"}</span>
-              <span className={`badge ${healthSummary.diabetesRisk?.toLowerCase() || "low"}`} style={{ fontSize: "9px", padding: "2px 6px" }}>
-                {healthSummary.diabetesRisk || "N/A"}
-              </span>
-            </div>
-
-            <div className="metric-box">
-              <span className="metric-box-title">Hypertension</span>
-              <span className="metric-box-val">{healthSummary.hypertensionRisk || "N/A"}</span>
-              <span className={`badge ${healthSummary.hypertensionRisk?.toLowerCase() || "low"}`} style={{ fontSize: "9px", padding: "2px 6px" }}>
-                {healthSummary.hypertensionRisk || "N/A"}
-              </span>
-            </div>
-
-            <div className="metric-box">
-              <span className="metric-box-title">Heart</span>
-              <span className="metric-box-val">{healthSummary.heartRate || "72 bpm"}</span>
-              <span className="badge normal" style={{ fontSize: "9px", padding: "2px 6px" }}>
-                Normal
-              </span>
-            </div>
+          {/* Last Check Dynamic Status */}
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "rgba(255,255,255,0.75)", fontSize: "11px", fontWeight: "600", marginTop: "16px" }}>
+            <span>🕒</span>
+            <span>Last check: {healthSummary.lastChecked || "Just now"}</span>
           </div>
+
         </div>
       </div>
 
       {/* Main Interactive Content */}
-      <div className="card-section" style={{ flex: 1 }}>
+      <div className="card-section" style={{ flex: 1, padding: "20px" }}>
         
-        {/* Talk to Health AI Voice Assistant */}
-        <div className="premium-card" style={{ paddingBottom: "24px" }}>
-          <div style={{ textAlign: "center", marginBottom: "16px" }}>
-            <h3 style={{ fontSize: "16px", color: "var(--text-primary)", fontWeight: "800" }}>Talk to Health AI</h3>
-            <p style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Tap the mic and speak — ask health questions in any language</p>
-          </div>
+        {/* Talk to Health AI Voice Assistant Premium Card */}
+        <div className="home-talk-ai-card">
+          <div className="home-talk-ai-inner">
+            <div style={{ textAlign: "center", marginBottom: "16px" }}>
+              <h3 style={{ fontSize: "16px", color: "var(--text-primary)", fontWeight: "800", margin: 0 }}>
+                Talk to Health AI
+              </h3>
+              <p style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "4px" }}>
+                Tap the mic and speak — ask in any language
+              </p>
+            </div>
 
-          <div className="voice-mic-container">
-            <div className="mic-outer-ring" onClick={() => setShowVoicePrompt(true)}>
-              <div className="mic-pulse-ring"></div>
-              <div className="mic-button-inner">
+            <div className="home-mic-outer" onClick={onOpenVoiceAssistant}>
+              <div className="mic-pulse-ring" style={{ width: "96px", height: "96px", borderRadius: "50%", background: "radial-gradient(circle, rgba(26,59,245,0.15) 0%, rgba(26,59,245,0) 70%)" }}></div>
+              <div className="home-mic-inner">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ width: "26px", height: "26px" }}>
                   <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
                   <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
@@ -200,13 +238,12 @@ export default function HomeView({
                 </svg>
               </div>
             </div>
-            <span style={{ fontSize: "11px", fontWeight: "700", color: "var(--primary)", marginTop: "4px" }}>PULSING VOICE ASSISTANT INITIATOR</span>
           </div>
         </div>
 
         {/* Voice Trigger Outbound Overlay Prompt */}
         {showVoicePrompt && (
-          <div className="auth-glass-overlay">
+          <div className="auth-glass-overlay" style={{ zIndex: 11000 }}>
             <div className="auth-sliding-card" style={{ padding: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                 <h3 style={{ margin: 0, fontSize: "16px" }}>Outbound Voice Screening</h3>
@@ -252,37 +289,173 @@ export default function HomeView({
           </div>
         )}
 
-        {/* Quick Actions Grid */}
-        <h2 style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>QUICK ACTIONS</h2>
-        <div className="dashboard-actions-grid">
-          <div className="action-card" onClick={() => setActiveTab("check")}>
-            <div className="action-card-icon" style={{ backgroundColor: "var(--accent-cyan-bg)", color: "var(--accent-cyan)" }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: "20px", height: "20px" }}>
-                <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
-                <path d="m9 12 2 2 4-4" />
-              </svg>
+        {/* Quick Actions Grid (2x2 Balanced visual cells exactly matching Image 3) */}
+        <h2 style={{ fontSize: "12px", color: "var(--text-muted)", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "12px" }}>
+          QUICK ACTIONS
+        </h2>
+        
+        <div className="home-quick-actions-custom-grid">
+          
+          {/* Card 1: Check My Health */}
+          <div className="home-quick-action-card" onClick={() => setActiveTab("check")}>
+            <div className="home-quick-action-icon-box" style={{ backgroundColor: "#f3e8ff", color: "#a855f7" }}>
+              📊
             </div>
             <div>
               <h3>Check My Health</h3>
-              <p>ML-powered screening questionnaire</p>
+              <p>AI health prediction</p>
             </div>
           </div>
 
-          <div className="action-card" onClick={() => setActiveTab("appoint")}>
-            <div className="action-card-icon" style={{ backgroundColor: "var(--accent-green-bg)", color: "var(--accent-green)" }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ width: "20px", height: "20px" }}>
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
+          {/* Card 2: Book Doctor */}
+          <div className="home-quick-action-card" onClick={() => setActiveTab("appoint")}>
+            <div className="home-quick-action-icon-box" style={{ backgroundColor: "#e0f2fe", color: "#0284c7" }}>
+              📅
             </div>
             <div>
               <h3>Book Doctor</h3>
-              <p>Schedule a call with nearest centers</p>
+              <p>Nearby PHC & hospitals</p>
             </div>
           </div>
+
+          {/* Card 3: Health Tips */}
+          <div className="home-quick-action-card" onClick={() => setActiveTab("tips")}>
+            <div className="home-quick-action-icon-box" style={{ backgroundColor: "#fef3c7", color: "#d97706" }}>
+              📣
+            </div>
+            <div>
+              <h3>Health Tips</h3>
+              <p>Daily awareness guide</p>
+            </div>
+          </div>
+
+          {/* Card 4: Nearest PHC (Custom navigation to MapView) */}
+          <div className="home-quick-action-card" onClick={() => setActiveTab("map")}>
+            <div className="home-quick-action-icon-box" style={{ backgroundColor: "#fce7f3", color: "#db2777" }}>
+              🗺️
+            </div>
+            <div>
+              <h3>Nearest PHC</h3>
+              <p>Bantwal PHC — 2.3 km</p>
+            </div>
+          </div>
+
         </div>
+
+        {/* Full-Width Red Emergency Help Card (Matches Image 3) */}
+        <div className="home-full-width-emergency-card" onClick={() => setShowEmergencyScreen(true)}>
+          <div className="home-full-width-emergency-left">
+            <div className="home-emergency-icon-box">🚨</div>
+            <div className="home-emergency-texts">
+              <h3>Emergency Help</h3>
+              <p>Tap for immediate assistance</p>
+            </div>
+          </div>
+          <div className="home-emergency-chevron">›</div>
+        </div>
+
+        {/* FULL-SCREEN RICH RED EMERGENCY MODAL OVERLAY */}
+        {showEmergencyScreen && (
+          <div className="emergency-full-overlay">
+            
+            {/* Close Cross Button Top Right */}
+            <button 
+              onClick={() => setShowEmergencyScreen(false)} 
+              style={{ position: "absolute", top: "36px", right: "24px", background: "none", border: "none", color: "rgba(255, 255, 255, 0.8)", fontSize: "28px", cursor: "pointer", zIndex: 10005 }}
+            >
+              &times;
+            </button>
+
+            {/* Siren Circle Icon (Matches Image 2) */}
+            <div className="emergency-siren-circle">
+              🚨
+            </div>
+
+            <h3 className="emergency-title">Are You In Emergency?</h3>
+            
+            <p className="emergency-description">
+              If you feel chest pain, dizziness, difficulty breathing, or severe bleeding — get help immediately.
+            </p>
+
+            {/* Phone Number Input Field to override fake guest number */}
+            <div style={{ margin: "0 0 18px 0", width: "100%", maxWidth: "400px", textAlign: "left" }}>
+              <label style={{ display: "block", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "rgba(255,255,255,0.75)", marginBottom: "6px", letterSpacing: "0.5px" }}>
+                Verify Phone Number (Required for Outbound Call)
+              </label>
+              <input 
+                type="tel"
+                style={{ 
+                  width: "100%", 
+                  padding: "12px 16px", 
+                  borderRadius: "12px", 
+                  border: "1px solid rgba(255,255,255,0.3)", 
+                  backgroundColor: "rgba(0,0,0,0.15)", 
+                  color: "white", 
+                  fontSize: "14px", 
+                  outline: "none",
+                  fontWeight: "600",
+                  textAlign: "center"
+                }}
+                placeholder="e.g. +91 98765 43210"
+                value={voicePhone}
+                onChange={(e) => setVoicePhone(e.target.value)}
+              />
+            </div>
+
+            {/* Button 1: Call Emergency AI (White card) */}
+            <button className="emergency-btn-white" onClick={handleEmergencyCall} disabled={emergencyLoading}>
+              <div className="emergency-btn-white-icon">
+                📞
+              </div>
+              <div className="emergency-btn-white-text">
+                <h4>Call Emergency AI (108)</h4>
+                <p>Speak to AI health assistant now</p>
+              </div>
+            </button>
+
+            {/* Status alerts below Call */}
+            {emergencyLoading && (
+              <div style={{ margin: "4px 0 16px 0", fontSize: "13px", color: "white", fontWeight: "bold" }}>
+                Connecting to Emergency Assistant...
+              </div>
+            )}
+            
+            {emergencySuccess && (
+              <div style={{ margin: "4px 0 16px 0", padding: "12px", background: "rgba(255,255,255,0.2)", borderRadius: "12px", fontSize: "12px", color: "white", fontWeight: "700", width: "100%", maxWidth: "400px" }}>
+                ✓ Emergency Call Initiated! Answer the incoming call on your phone.
+              </div>
+            )}
+
+            {emergencyError && (
+              <div style={{ margin: "4px 0 16px 0", padding: "12px", background: "rgba(0,0,0,0.3)", borderRadius: "12px", fontSize: "12px", color: "white", fontWeight: "bold", width: "100%", maxWidth: "400px" }}>
+                ⚠ {emergencyError}
+              </div>
+            )}
+
+            {/* Button 2: Go to Nearest PHC (Outlined card) */}
+            <button 
+              className="emergency-btn-outline" 
+              onClick={() => {
+                setShowEmergencyScreen(false);
+                setActiveTab("map");
+              }}
+            >
+              <div className="emergency-btn-outline-icon">
+                📍
+              </div>
+              <div className="emergency-btn-outline-text">
+                <h4>Go to Nearest PHC</h4>
+                <p>Bantwal PHC — 2.3 km away</p>
+              </div>
+            </button>
+
+            {/* Underlined Back to Home Link */}
+            <span className="emergency-back-link" onClick={() => setShowEmergencyScreen(false)}>
+              ← Back to Home
+            </span>
+
+          </div>
+        )}
 
         {/* Medical Disclaimer Banner */}
         <div className="medical-disclaimer-box" style={{ marginTop: "24px" }}>

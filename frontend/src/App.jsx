@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import MobileFrame from "./components/MobileFrame";
 import Navbar from "./components/Navbar";
-import AuthModal from "./components/AuthModal";
+import ProfilePanel from "./components/ProfilePanel";
+import VoiceAssistantPanel from "./components/VoiceAssistantPanel";
 
 // Views
 import HomeView from "./views/HomeView";
@@ -9,6 +10,8 @@ import CheckView from "./views/CheckView";
 import MapView from "./views/MapView";
 import AppointView from "./views/AppointView";
 import TipsView from "./views/TipsView";
+import OnboardingView from "./views/OnboardingView";
+import SettingsView from "./views/SettingsView";
 
 // API
 import { api } from "./services/api";
@@ -16,6 +19,9 @@ import { api } from "./services/api";
 export default function App() {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("home"); // home, check, appoint, tips, map
+  const [onboarded, setOnboarded] = useState(
+    localStorage.getItem("arogya_onboarded") === "true"
+  );
   
   // Dashboard & State Metrics
   const [healthSummary, setHealthSummary] = useState({
@@ -27,6 +33,7 @@ export default function App() {
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showVoiceAssistant, setShowVoiceAssistant] = useState(false);
   
   const languages = ["English", "Hindi", "Kannada"];
 
@@ -182,10 +189,63 @@ export default function App() {
     syncDashboardData(authenticatedUser._id);
   };
 
+  const handleOnboardingComplete = (profileDetails) => {
+    const newUser = {
+      _id: "demo_user_id_" + Date.now(),
+      name: profileDetails.name,
+      phone: "+91 98765 43210",
+      age: profileDetails.age,
+      gender: profileDetails.gender,
+      height: profileDetails.height,
+      weight: profileDetails.weight,
+      language: profileDetails.language,
+      bpChecked: profileDetails.bpChecked,
+      bpValue: profileDetails.bpValue,
+      familyHistory: profileDetails.familyHistory
+    };
+    
+    const diabetesRisk = profileDetails.familyHistory ? "Medium" : "Normal";
+    const bpStatus = profileDetails.bpChecked ? "Medium" : "Normal";
+    
+    setHealthSummary({
+      diabetesRisk: diabetesRisk,
+      hypertensionRisk: bpStatus,
+      lastChecked: "Just now",
+      heartRate: "72 bpm"
+    });
+
+    localStorage.setItem("arogya_user_id", newUser._id);
+    localStorage.setItem("arogya_onboarded", "true");
+    setUser(newUser);
+    setOnboarded(true);
+  };
+
+  const handleOnboardingSkip = (lang) => {
+    const guestUser = {
+      name: "Guest",
+      phone: "+91 98765 43210",
+      language: lang || "English",
+      isGuest: true
+    };
+    
+    setHealthSummary({
+      diabetesRisk: "Medium",
+      hypertensionRisk: "Normal",
+      lastChecked: "Today",
+      heartRate: "72 bpm"
+    });
+
+    localStorage.setItem("arogya_onboarded", "true");
+    setUser(guestUser);
+    setOnboarded(true);
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("arogya_user_id");
     localStorage.removeItem("arogya_token");
+    localStorage.removeItem("arogya_onboarded");
     setUser(null);
+    setOnboarded(false);
     setTab("home");
     setHealthSummary({
       diabetesRisk: "N/A",
@@ -213,6 +273,7 @@ export default function App() {
             onMarkNotificationRead={handleMarkNotificationRead}
             onChangeLanguage={handleChangeLanguage}
             languages={languages}
+            onOpenVoiceAssistant={() => setShowVoiceAssistant(true)}
           />
         );
       case "check":
@@ -244,26 +305,65 @@ export default function App() {
             setActiveTab={setTab}
           />
         );
+      case "settings":
+        return (
+          <SettingsView
+            user={user}
+            setActiveTab={setTab}
+          />
+        );
       default:
         return <div>View not found</div>;
     }
   };
 
+  if (!onboarded) {
+    return (
+      <MobileFrame showBackButton={false}>
+        <OnboardingView 
+          onOnboardingComplete={handleOnboardingComplete}
+          onOnboardingSkip={handleOnboardingSkip}
+        />
+      </MobileFrame>
+    );
+  }
+
   return (
     <MobileFrame 
       onBack={() => setTab("home")} 
-      showBackButton={tab !== "home"}
+      showBackButton={false}
     >
       {renderActiveView()}
 
       {/* Tab Navigation bottom bar */}
       <Navbar activeTab={tab} setActiveTab={setTab} />
 
-      {/* Sliding Glass Onboarding Modal */}
+      {/* Sliding Glass Profile Bottom Sheet Panel */}
       {showAuthModal && (
-        <AuthModal
-          onAuthSuccess={handleAuthSuccess}
+        <ProfilePanel
+          user={user}
+          healthSummary={healthSummary}
           onClose={() => setShowAuthModal(false)}
+          onOpenSettings={() => {
+            setShowAuthModal(false);
+            setTab("settings");
+          }}
+          onOpenVoiceTest={async () => {
+            setShowAuthModal(false);
+            setShowVoiceAssistant(true);
+          }}
+          onLogout={handleLogout}
+        />
+      )}
+
+      {/* Voice Assistant Speech Control Panel overlay */}
+      {showVoiceAssistant && (
+        <VoiceAssistantPanel
+          user={user}
+          healthSummary={healthSummary}
+          activeTab={tab}
+          setActiveTab={setTab}
+          onClose={() => setShowVoiceAssistant(false)}
         />
       )}
     </MobileFrame>
